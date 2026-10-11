@@ -8,6 +8,8 @@
 import type { OAuthCallbackFlowOptions } from "@gajae-code/ai/utils/oauth/callback-server";
 import { OAuthCallbackFlow } from "@gajae-code/ai/utils/oauth/callback-server";
 import type { OAuthController, OAuthCredentials } from "@gajae-code/ai/utils/oauth/types";
+import { guardedPublicFetch } from "../web/insane/url-guard";
+import { assertPublicOAuthUrl } from "./oauth-public-url";
 
 const DEFAULT_PORT = 3000;
 const CALLBACK_PATH = "/callback";
@@ -261,8 +263,10 @@ export class MCPOAuthFlow extends OAuthCallbackFlow {
 			params.set("client_secret", clientSecret);
 		}
 
+		await assertPublicOAuthUrl(this.config.tokenUrl, { signal: this.ctrl.signal });
 		const response = await fetch(this.config.tokenUrl, {
 			method: "POST",
+			redirect: "error",
 			headers: {
 				"Content-Type": "application/x-www-form-urlencoded",
 			},
@@ -340,8 +344,10 @@ export class MCPOAuthFlow extends OAuthCallbackFlow {
 		if (!registrationEndpoint) return;
 
 		try {
+			await assertPublicOAuthUrl(registrationEndpoint, { signal });
 			const response = await fetch(registrationEndpoint, {
 				method: "POST",
+				redirect: "error",
 				headers: {
 					"Content-Type": "application/json",
 					Accept: "application/json",
@@ -380,8 +386,10 @@ export class MCPOAuthFlow extends OAuthCallbackFlow {
 		try {
 			const authorizationEndpoint = new URL(this.config.authorizationUrl);
 			const metadataUrl = new URL("/.well-known/oauth-authorization-server", authorizationEndpoint.origin);
+			await assertPublicOAuthUrl(metadataUrl.toString(), { signal });
 			const response = await fetch(metadataUrl.toString(), {
 				method: "GET",
+				redirect: "error",
 				headers: { Accept: "application/json" },
 				signal,
 			});
@@ -401,12 +409,16 @@ export class MCPOAuthFlow extends OAuthCallbackFlow {
 
 	async #assertClientIdNotRequired(authorizationUrl: string, signal?: AbortSignal): Promise<void> {
 		try {
-			const response = await fetch(authorizationUrl, {
+			// Pin the GET to the addresses that passed validation. A plain fetch would
+			// resolve the hostname again. Skip the probe when that route cannot be
+			// established; the flow signal cancels the DNS lookup.
+			const probed = await guardedPublicFetch(authorizationUrl, {
 				method: "GET",
-				redirect: "manual",
 				headers: { Accept: "text/plain,text/html,application/json" },
 				signal,
 			});
+			if (!probed.ok) return;
+			const response = probed.response;
 			if (response.status < 400) return;
 			const body = await response.text();
 			if (/client[_-]?id/i.test(body) && /(required|missing|invalid)/i.test(body)) {
