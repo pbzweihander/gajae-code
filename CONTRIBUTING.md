@@ -88,3 +88,7 @@ The `CI` workflow publishes a scheduled nightly prerelease from `main` at 04:23 
 Merges to `dev` require one approving GitHub review from a write-access maintainer on the exact current head. This is enforced by the repository's native GitHub ruleset.
 
 Metadata-only PR edits must not manufacture successful required checks by skipping the aggregate jobs. Dev CI validates those events through real code-validation jobs; separate metadata concurrency preserves an already-running code-validation run. Pending, failed, cancelled, or missing dependency evidence cannot satisfy the aggregate. State-gate relevance is decided before native provisioning, with runtime prompt Markdown in dependency workspaces treated as executable input rather than documentation.
+
+## Re-requesting reviews
+
+If you want reviewers to re-examine your PR after addressing feedback, comment with `/re-review`. The workflow will request reviews from all human reviewers whose latest review is `CHANGES_REQUESTED` or `COMMENTED` but are not currently requested. Authorized users are the PR author or anyone with write permission to the repository.
